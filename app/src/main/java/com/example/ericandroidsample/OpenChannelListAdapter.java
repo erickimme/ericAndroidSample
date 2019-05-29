@@ -23,6 +23,7 @@ public class OpenChannelListAdapter extends RecyclerView.Adapter<OpenChannelList
         public TextView openChannelNameTextView;
         public Button openChannelButton;
         private String channelUrl;
+        private String openChannelName;
 
         public OpenChannelListViewHolder(LinearLayout v) {
             super(v);
@@ -45,9 +46,16 @@ public class OpenChannelListAdapter extends RecyclerView.Adapter<OpenChannelList
 
     @Override
     public void onBindViewHolder(OpenChannelListViewHolder holder, int position) {
-        holder.channelUrl = openChannelList.get(position).getUrl();
-        holder.openChannelNameTextView.setText(holder.channelUrl);
+        // get name
+        holder.openChannelName = openChannelList.get(position).getName();
+        holder.openChannelNameTextView.setText(holder.openChannelName);
 
+
+        // get url
+        holder.channelUrl = openChannelList.get(position).getUrl();
+//        holder.openChannelNameTextView.setText(holder.channelUrl);
+
+        final String openChannelName = holder.openChannelName;
         final String channelUrl = holder.channelUrl;
         holder.openChannelButton.setOnClickListener(new View.OnClickListener() {
             @Override

@@ -44,6 +44,15 @@
             android:name=".ChatActivity">
         </activity>
 
+        <activity
+            android:name=".CreateGroupChannelActivity">
+        </activity>
+
+        <activity
+            android:name=".CreateOpenChannelActivity">
+        </activity>
+
+
 
     </application>
 
