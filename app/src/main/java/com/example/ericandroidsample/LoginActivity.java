@@ -15,7 +15,7 @@ import com.sendbird.android.User;
 
 
 public class LoginActivity extends AppCompatActivity {
-    final static String APP_ID = "90EEACA0-2C62-4328-9F71-C7806FABDD75"; // Sample App
+    final static String APP_ID = "90EEACA0-2C62-4328-9F71-C7806FABDD75"; // eric_web_quickstart_Sample App
     private Button mConnectButton;
     private TextInputEditText mUserIdEditText, mUserNicknameEditText;
     private SharedPreferences mPrefs;
@@ -45,12 +45,18 @@ public class LoginActivity extends AppCompatActivity {
             public void onClick(View v) {
                 String userId = mUserIdEditText.getText().toString();
                 userId = userId.replaceAll("\\s", "");
-
                 String userNickname = mUserNicknameEditText.getText().toString();
-                SharedPreferences.Editor mEditor = mPrefs.edit();
-                mEditor.putString("userId", userId).commit();
-                mEditor.putString("userNickName", userNickname).commit();
-                connectToSendBird(userId, userNickname);
+
+                if (!userId.isEmpty() && !userNickname.isEmpty()) {
+                    SharedPreferences.Editor mEditor = mPrefs.edit();
+                    mEditor.putString("userNickName", userNickname).commit();
+                    mEditor.putString("userId", userId).commit();
+                    connectToSendBird(userId, userNickname);
+                }else{
+                    Toast.makeText(LoginActivity.this, "Please input userNickname", Toast.LENGTH_SHORT).show();
+
+                }
+
             }
         });
     }

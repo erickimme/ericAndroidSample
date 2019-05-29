@@ -1,10 +1,14 @@
 package com.example.ericandroidsample;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import com.sendbird.android.GroupChannel;
@@ -15,11 +19,13 @@ import com.sendbird.android.SendBird;
 import com.sendbird.android.SendBirdException;
 import com.sendbird.android.User;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ChannelListActivity extends AppCompatActivity {
     String USER_ID;
     String CHANNEL_TYPE;
+    private Button mCreateOpenOrGroupChannelButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,6 +35,31 @@ public class ChannelListActivity extends AppCompatActivity {
         USER_ID = getIntent().getStringExtra("userID");
         CHANNEL_TYPE = getIntent().getStringExtra("channelType");
         init_sendbird();
+
+        mCreateOpenOrGroupChannelButton = (Button) findViewById(R.id.create_channel_button);
+        mCreateOpenOrGroupChannelButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                switch (CHANNEL_TYPE){
+                    case Constants.openChannelType:
+                        Intent intent_open = new Intent(ChannelListActivity.this, CreateOpenChannelActivity.class);
+                        startActivity(intent_open);
+                        finish();
+                        break;
+                    case Constants.groupChannelType:
+                        Intent intent_group = new Intent(ChannelListActivity.this, CreateGroupChannelActivity.class);
+                        startActivity(intent_group);
+                        finish();
+                        break;
+                    default:
+                        Log.e("App", "Invalid Channel Type: " + CHANNEL_TYPE);
+                        finish();
+                        break;
+                }
+            }
+        });
+
+
     }
 
     @Override
@@ -94,6 +125,11 @@ public class ChannelListActivity extends AppCompatActivity {
     // showing the open channel list
     protected void populate_open_channel_list(List<OpenChannel> list) {
         RecyclerView rvOpenChannelList = findViewById(R.id.channelListRecyclerView);
+        List<String> openChannelName_list = new ArrayList<>();
+
+        for (int i = 0; i < list.size(); i++) {
+            openChannelName_list.add(list.get(i).getName());
+        }
 
         OpenChannelListAdapter adapter = new OpenChannelListAdapter(list, CHANNEL_TYPE);
         rvOpenChannelList.setAdapter(adapter);
