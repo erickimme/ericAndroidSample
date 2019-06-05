@@ -27,6 +27,7 @@ public class LoginActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+        PreferenceUtils.init(getApplicationContext());
 
         Toast.makeText(LoginActivity.this, "Hi, welcome to Eric's sample app", Toast.LENGTH_SHORT).show();
         mPrefs = getSharedPreferences("label", 0);

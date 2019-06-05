@@ -18,15 +18,18 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.sendbird.android.BaseChannel;
 import com.sendbird.android.BaseMessage;
+import com.sendbird.android.FileMessage;
 import com.sendbird.android.GroupChannel;
 import com.sendbird.android.OpenChannel;
 import com.sendbird.android.SendBird;
 import com.sendbird.android.SendBirdException;
 import com.sendbird.android.User;
 import com.sendbird.android.UserMessage;
+import com.sendbird.android.shadow.okhttp3.Connection;
 
 import org.w3c.dom.Text;
 
@@ -34,15 +37,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ChatActivity extends AppCompatActivity {
-    private String mChannelUrl;
-    private String mChannelType;
-    private final static String CHANNEL_HANDELER_ID = "CHANNEL_HANDLER_CHAT";
+
+    private static final int CHANNEL_LIST_LIMIT = 30;
+    private static final String CONNECTION_HANDLER_ID = "CONNECTION_HANDLER_GROUP_CHAT";
+    private static final String CHANNEL_HANDLER_ID = "CHANNEL_HANDLER_GROUP_CHANNEL_CHAT";
 
     private ChatAdapter mChatAdapter;
     private RecyclerView mRecyclerView;
     private LinearLayoutManager mLayoutManager;
     private Button mSendButton;
     private EditText mMessageEditText;
+
+    private GroupChannel mGroupChannel;
+    private OpenChannel mOpenChannel;
+    private String mChannelUrl;
+    private String mChannelType;
+
 
 
     @Override
@@ -108,6 +118,8 @@ public class ChatActivity extends AppCompatActivity {
     * join group channel :
      */
     private void join_group_channel(){
+        Toast.makeText(ChatActivity.this, "joining group channel", Toast.LENGTH_SHORT).show();
+
         GroupChannel.getChannel(mChannelUrl, new GroupChannel.GroupChannelGetHandler() {
             @Override
             public void onResult(final GroupChannel groupChannel, SendBirdException e) {
@@ -116,24 +128,13 @@ public class ChatActivity extends AppCompatActivity {
                     return;
                 }
 
-                groupChannel.join(new GroupChannel.GroupChannelJoinHandler() {
-                    @Override
-                    public void onResult(SendBirdException e) {
-                        if (e != null){
-                            e.printStackTrace();
-                            return;
-                        }
-//                        mChatAdapter = new ChatAdapter(groupChannel);
-//                        mRecyclerView.setAdapter(mChatAdapter);
-                        mChatAdapter.addChannel(groupChannel);
-//                        mRecyclerView.setAdapter(mChatAdapter);
-
-                    }
-                });
+                mGroupChannel = groupChannel;
+                //TODO : loadLatestMessages
+                // call refresh()
+                refresh_group_chat();
             }
         });
     }
-
 
     /*
     * open group channel
@@ -163,14 +164,71 @@ public class ChatActivity extends AppCompatActivity {
         });
     }
 
+    private void refresh_group_chat() {
+        if (mGroupChannel == null) {
+            GroupChannel.getChannel(mChannelUrl, new GroupChannel.GroupChannelGetHandler() {
+                @Override
+                public void onResult(GroupChannel groupChannel, SendBirdException e) {
+                    if (e != null) {
+                        // Error!
+                        e.printStackTrace();
+                        return;
+                    }
+
+                    mGroupChannel = groupChannel;
+                    mChatAdapter.setChannel(mGroupChannel);
+                    mChatAdapter.loadLatestMessages(CHANNEL_LIST_LIMIT, new BaseChannel.GetMessagesHandler() {
+                        @Override
+                        public void onResult(List<BaseMessage> list, SendBirdException e) {
+                            mChatAdapter.markAllMessagesAsRead();
+                        }
+                    });
+//                    updateActionBarTitle();
+                }
+            });
+        } else {
+            mGroupChannel.refresh(new GroupChannel.GroupChannelRefreshHandler() {
+                @Override
+                public void onResult(SendBirdException e) {
+                    if (e != null) {
+                        // Error!
+                        e.printStackTrace();
+                        return;
+                    }
+
+                    mChatAdapter.loadLatestMessages(CHANNEL_LIST_LIMIT, new BaseChannel.GetMessagesHandler() {
+                        @Override
+                        public void onResult(List<BaseMessage> list, SendBirdException e) {
+                            mChatAdapter.markAllMessagesAsRead();
+                        }
+                    });
+//                    updateActionBarTitle();
+                }
+            });
+        }
+    }
+
     @Override
     protected void onResume(){
+//        Toast.makeText(ChatActivity.this, "onResume clicked", Toast.LENGTH_SHORT).show();
+//        Toast.makeText(ChatActivity.this, mChannelUrl, Toast.LENGTH_SHORT).show();
         super.onResume();
 
+        // refresh the chatlist
+        ConnectionManager.addConnectionManagementHandler(CONNECTION_HANDLER_ID, new ConnectionManager.ConnectionManagementHandler() {
+            @Override
+            public void onConnected(boolean reconnect) {
+                if (mChannelType.equals(Constants.groupChannelType)){
+                    refresh_group_chat();
+                }
+            }
+        });
+
         // receive messages from sendbird Servers
-        SendBird.addChannelHandler(CHANNEL_HANDELER_ID, new SendBird.ChannelHandler() {
+        SendBird.addChannelHandler(CHANNEL_HANDLER_ID, new SendBird.ChannelHandler() {
             @Override
             public void onMessageReceived(BaseChannel baseChannel, BaseMessage baseMessage) {
+                Toast.makeText(ChatActivity.this, baseChannel.getUrl(), Toast.LENGTH_SHORT).show();
                 if (baseChannel.getUrl().equals(mChannelUrl) && baseMessage instanceof UserMessage) {
                     mChatAdapter.appendMessage(baseChannel, (UserMessage) baseMessage);
                 }
@@ -180,9 +238,36 @@ public class ChatActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        SendBird.removeChannelHandler(CHANNEL_HANDELER_ID);
+
+        SendBird.removeChannelHandler(CHANNEL_HANDLER_ID);
         super.onPause();
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     /**
@@ -196,14 +281,13 @@ public class ChatActivity extends AppCompatActivity {
 
         private ArrayList<BaseMessage> mMessageList;
         private BaseChannel mChannel;
+        private GroupChannel mGroupChannel;
+        private OpenChannel mOpenChannel;
+        private boolean mIsMessageListLoading;
 
 
-//        ChatAdapter(BaseChannel channel){
-//            mMessageList = new ArrayList<>();
-//            mChannel = channel;
-//
-//            refresh();
-//        }
+        private ArrayList<String> mFailedMessageIdList = new ArrayList<>();
+
 
         ChatAdapter(){
             mMessageList = new ArrayList<>();
@@ -211,6 +295,7 @@ public class ChatActivity extends AppCompatActivity {
 
 //            refresh();
         }
+
 
         // Retrieves 50 most recent messages and store them in an ArrayList.
         void refresh(){
@@ -226,6 +311,27 @@ public class ChatActivity extends AppCompatActivity {
                 }
             });
         }
+
+
+
+
+        /**
+         *  Notify that the user has read all (previously unread) messages in the channel.
+         *  Typically, this would be called immediately after the user enters the chat and loads
+         *  its most recent messages.
+         */
+        public void markAllMessagesAsRead() {
+            if (mGroupChannel != null){
+                mGroupChannel.markAsRead();
+            }
+            notifyDataSetChanged();
+        }
+
+
+
+
+
+
 
 
 
@@ -245,6 +351,56 @@ public class ChatActivity extends AppCompatActivity {
                 }
             });
         }
+
+
+        /**
+         * Replaces current message list with new list.
+         * Should be used only on initial load or refresh.
+         */
+        public void loadLatestMessages(int limit, final BaseChannel.GetMessagesHandler handler){
+            if (mChannel == null){
+                return;
+            }
+
+            if (isMessageListLoading()){
+                return;
+            }
+
+            setMessageListLoading(true);
+            mChannel.getPreviousMessagesByTimestamp(Long.MAX_VALUE, true, limit, true, BaseChannel.MessageTypeFilter.ALL, null, new BaseChannel.GetMessagesHandler() {
+                @Override
+                public void onResult(List<BaseMessage> list, SendBirdException e){
+                    if (handler != null){
+                        handler.onResult(list, e);
+                    }
+
+                    setMessageListLoading(false);
+                    if (e != null){
+                        e.printStackTrace();
+                        return;
+                    }
+
+                    if (list.size() <= 0){
+                        return;
+                    }
+
+                    for (BaseMessage message : mMessageList) {
+                        if (isTempMessage(message) || isFailedMessage(message)){
+                            list.add(0, message);
+                        }
+                    }
+
+                    mMessageList.clear();
+
+                    for (BaseMessage message : list){
+                        mMessageList.add(message);
+                    }
+
+                    notifyDataSetChanged();
+                }
+            });
+        }
+
 
         void addChannel(BaseChannel channel){
             mChannel = channel;
@@ -330,6 +486,38 @@ public class ChatActivity extends AppCompatActivity {
             return mMessageList.size();
         }
 
+
+
+
+        void setChannel(GroupChannel channel){
+            mChannel = channel;
+        }
+
+        public boolean isTempMessage(BaseMessage message){
+            return message.getMessageId() == 0;
+        }
+
+        public boolean isFailedMessage(BaseMessage message){
+            if (!isTempMessage(message)){
+                return false;
+            }
+
+            if (message instanceof UserMessage) {
+                int index = mFailedMessageIdList.indexOf(((UserMessage) message).getRequestId());
+                if (index >= 0){
+                    return true;
+                }
+            } else if (message instanceof FileMessage){
+                int index = mFailedMessageIdList.indexOf(((FileMessage) message).getRequestId());
+                if (index >= 0){
+                    return true;
+                }
+            }
+            return false;
+        }
+
+
+
         // Message sent by me do not display a profile image or nickname
         private class SentMessageHolder extends RecyclerView.ViewHolder {
             TextView messageText, timeText;
@@ -372,27 +560,13 @@ public class ChatActivity extends AppCompatActivity {
             }
         }
 
+
+        private synchronized boolean isMessageListLoading() {
+            return mIsMessageListLoading;
+        }
+
+        private synchronized void setMessageListLoading(boolean tf){
+            mIsMessageListLoading = tf;
+        }
     }
-
-
-
-
-
-
-//
-//    // Initailize the RecyclerView with ChatAdapter
-//    OpenChannel.getChannel()
-//    channel.enter()
-//    // layout manager for recyclerview
-//    mLayoutManager.reverse()
-//
-//    // Register a channel Handler in ChatActivity
-//    // : automatically receives all incoming messages from the SendBird servers
-//    if (onMessageReceived is called)
-//    {
-//        adapter.appendMessage()
-//    }
-
-
-
 }
