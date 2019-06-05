@@ -124,6 +124,7 @@ public class ChannelListActivity extends AppCompatActivity {
 
     // showing the open channel list
     protected void populate_open_channel_list(List<OpenChannel> list) {
+        Toast.makeText(ChannelListActivity.this, "populate open channel", Toast.LENGTH_SHORT).show();
         RecyclerView rvOpenChannelList = findViewById(R.id.channelListRecyclerView);
         List<String> openChannelName_list = new ArrayList<>();
 
